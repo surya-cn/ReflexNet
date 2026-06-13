@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReflexNet | Pro Aim AI</title>
+    <link rel="stylesheet" href="./src/style.css" />
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <video id="bg-video" autoplay loop muted playsinline>
+      <source src="assets/bg.mp4" type="video/mp4">
+    </video>
+
+    <!-- 3D WebGL Canvas Container -->
+    <div id="game-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer">
+      
+      <!-- Auth Panel -->
+      <div id="auth-panel" class="glass-panel foggy-panel">
+        <h1>Reflex<span class="highlight">Net</span></h1>
+        <p id="auth-subtitle">AI-Powered Sensitivity Optimization</p>
+        
+        <form id="auth-form">
+          <div class="input-group hidden" id="username-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="pro_gamer" />
+          </div>
+          <div class="input-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" required placeholder="pro@esports.com" />
+          </div>
+          <div class="input-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" required placeholder="        " />
+            <span id="password-reqs" class="hidden" style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; display: block;">Must be at least 8 characters, include 1 uppercase letter, and 1 symbol.</span>
+            <a href="#" id="forgot-password-link" style="color: #94a3b8; font-size: 0.8rem; display: block; text-align: right; margin-top: 0.5rem; cursor: pointer; text-decoration: none;">Forgot password?</a>
+          </div>
+          <button type="submit" class="btn primary-btn" id="auth-submit-btn">Login</button>
+
+          <div style="display: flex; align-items: center; margin: 16px 0;">
+            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+            <span style="padding: 0 10px; color: #a0aec0; font-size: 0.85rem;">or</span>
+            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+          </div>
+          
+          <button type="button" id="google-login-btn" style="width: 100%; padding: 12px; font-size: 1rem; font-family: 'Outfit', sans-serif; font-weight: 500; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;">
+            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign in with Google
+          </button>
+          <div style="margin-top: 12px; text-align: center; font-size: 0.9rem;">
+            <a href="#" id="auth-toggle-link" style="color: var(--accent); text-decoration: none;">Not registered yet? Click here to register</a>
+          </div>
+          <div id="auth-error" class="error-msg"></div>
+        </form>
+      </div>
+
+      <!-- Forgot Password Panel -->
+      <div id="forgot-password-panel" class="glass-panel foggy-panel hidden">
+        <h2>Reset <span class="highlight">Password</span></h2>
+        <p style="font-size: 0.9rem; margin-bottom: 20px; color: #a0aec0;">Enter your registered email and we will send you a reset link.</p>
+        
+        <form id="forgot-password-form">
+          <div class="input-group">
+            <label for="reset-email">Email</label>
+            <input type="email" id="reset-email" required placeholder="pro@esports.com" />
+          </div>
+          <button type="submit" class="btn primary-btn" id="send-reset-btn">Send Reset Link</button>
+          
+          <div style="margin-top: 12px; text-align: center; font-size: 0.9rem;">
+            <a href="#" id="back-to-login-link" style="color: var(--accent); text-decoration: none;">Back to Login</a>
+          </div>
+          
+          <div id="reset-message" style="margin-top: 16px; font-size: 0.9rem; text-align: center;"></div>
+        </form>
+      </div>
+
+      <!-- API Setup Panel -->
+      <div id="api-setup-panel" class="glass-panel foggy-panel hidden">
+        <h1>Groq API <span class="highlight">Setup</span></h1>
+        <p style="font-size: 0.9rem; margin-bottom: 20px; color: #a0aec0;">To use the AI Analysis engine, please provide your Groq API Key. This will be securely saved to your account profile.</p>
+        
+        <form id="api-setup-form">
+          <div class="input-group">
+            <label for="groq-api-key">Groq API Key</label>
+            <input type="password" id="groq-api-key" required placeholder="gsk_..." />
+            <div style="margin-top: 6px; text-align: right;">
+              <a href="#" id="open-api-help-link" style="color: var(--accent); cursor: pointer; font-size: 0.85rem; text-decoration: none;">Learn how to get a Groq API key</a>
+            </div>
+          </div>
+          
+          <button type="button" class="btn secondary-btn" id="test-api-btn" style="margin-bottom: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">Test Connection</button>
+          
+          <div id="api-test-result" style="margin-bottom: 16px; font-size: 0.9rem; text-align: center;"></div>
+          
+          <button type="submit" class="btn primary-btn" id="save-api-btn" disabled>Save & Continue</button>
+        </form>
+      </div>
+
+      <!-- API Help Panel -->
+      <div id="api-help-panel" class="glass-panel foggy-panel hidden">
+        <h2>How to get a <span class="highlight">Groq API Key</span></h2>
+        <div style="text-align: left; margin-bottom: 20px; line-height: 1.6;">
+          <ol style="padding-left: 20px; color: #a0aec0; font-size: 0.95rem;">
+            <li style="margin-bottom: 10px;">Go to the <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:none;">Groq Console</a> and log in or sign up.</li>
+            <li style="margin-bottom: 10px;">Navigate to the <strong style="color:#fff;">API Keys</strong> section in the sidebar.</li>
+            <li style="margin-bottom: 10px;">Click <strong style="color:#fff;">Create API Key</strong>.</li>
+            <li style="margin-bottom: 10px;">Give the key a name (e.g., "ReflexNet") and generate it.</li>
+            <li style="margin-bottom: 10px;">Copy the key immediately (it won't be shown again) and paste it into the setup screen.</li>
+          </ol>
+        </div>
+        <button type="button" class="btn secondary-btn" id="close-api-help-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">Back to Setup</button>
+      </div>
+
+      <!-- Onboarding / Setup Panel -->
+      <div id="setup-panel" class="glass-panel foggy-panel hidden">
+        <h2>Calibration <span class="highlight">Setup</span></h2>
+        <p>Enter your current hardware and game specs before dropping in.</p>
+        
+        <form id="setup-form">
+          <div class="input-row">
+            <div class="input-group">
+              <label for="dpi">Mouse DPI</label>
+              <input type="number" id="dpi" required value="800" min="100" max="32000" />
+            </div>
+            <div class="input-group">
+              <label for="polling-rate">Polling Rate (Hz)</label>
+              <select id="polling-rate">
+                <option value="500">500 Hz</option>
+                <option value="1000" selected>1000 Hz</option>
+                <option value="2000">2000 Hz</option>
+                <option value="4000">4000 Hz</option>
+                <option value="8000">8000 Hz</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row">
+            <div class="input-group">
+              <label for="target-game">Target Game</label>
+            <select id="target-game">
+              <option value="CS2">CS2</option>
+              <option value="VALORANT">VALORANT</option>
+              <option value="Apex Legends">Apex Legends</option>
+              <option value="Call of Duty">Call of Duty</option>
+              <option value="The Finals">The Finals</option>
+              <option value="Overwatch 2">Overwatch 2</option>
+              <option value="Rainbow Six Siege">Rainbow Six Siege</option>
+              <option value="Fortnite">Fortnite</option>
+            </select>
+            </div>
+            <div class="input-group">
+              <label for="current-sens">Current Sens (Optional)</label>
+              <input type="number" id="current-sens" step="0.001" min="0.001" placeholder="e.g. 0.18">
+            </div>
+          </div>
+          <button type="submit" class="btn action-btn">START CALIBRATION</button>
+        </form>
+      </div>
+
+      <!-- API Settings Panel -->
+      <div id="api-settings-panel" class="glass-panel foggy-panel hidden">
+        <h2>Manage <span class="highlight">API Key</span></h2>
+        <p style="font-size: 0.9rem; margin-bottom: 20px; color: #a0aec0;">Update your Groq API key. Your current key is securely encrypted.</p>
+        
+        <form id="api-settings-form">
+          <div class="input-group">
+            <label for="new-groq-api-key">New Groq API Key</label>
+            <input type="password" id="new-groq-api-key" required placeholder="••••••••••••" />
+            <div style="margin-top: 6px; text-align: right;">
+              <a href="#" id="settings-open-api-help-link" style="color: var(--accent); cursor: pointer; font-size: 0.85rem; text-decoration: none;">Learn how to get a Groq API key</a>
+            </div>
+          </div>
+          
+          <div id="settings-api-test-result" style="margin-bottom: 16px; font-size: 0.9rem; text-align: center;"></div>
+          
+          <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn primary-btn" id="update-api-btn">Update Key</button>
+            <button type="button" class="btn secondary-btn" id="close-api-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- In-Game HUD -->
+      <div id="hud-panel" class="hidden">
+        <div class="crosshair"></div>
+        <div class="timer-display" id="drill-timer">03:00</div>
+        
+        <!-- Pause Menu (Near Timer) -->
+        <div id="pause-menu" class="hidden" style="position: absolute; top: 90px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: auto;">
+          <button id="resume-btn" style="padding: 10px 32px; font-size: 1.2rem; font-weight: 700; font-family: 'Outfit', sans-serif; background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); text-transform: uppercase; letter-spacing: 1px;">▶ Resume</button>
+          <span style="font-size: 0.85rem; color: rgba(255,255,255,0.6);">Click to unpause</span>
+        </div>
+
+        <div class="stats-bar" style="pointer-events: none;">
+          <span id="targets-hit"></span>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <span id="esc-hint">Press ESC to pause</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Standalone Calibration Button -->
+      <div id="top-menu" class="hidden" style="position: absolute; top: 20px; right: 360px; z-index: 100; pointer-events: auto;">
+        <button id="open-setup-btn" style="padding: 10px 20px; font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 500; background: rgba(99, 102, 241, 0.15); color: #fff; border: 1px solid var(--accent); border-radius: 8px; cursor: pointer; transition: 0.2s; backdrop-filter: blur(10px);">⚙️ Calibration</button>
+      </div>
+
+      <!-- Persistent History Sidebar -->
+      <div id="history-sidebar" class="glass-panel foggy-panel sidebar-panel hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+          <div>
+            <h3 style="margin:0; border:none; padding:0; color: var(--accent);"><span id="history-username">Your</span> Drill History</h3>
+            <span style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; display: block;">Displaying the last 10 calibration sessions.</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="sign-out-btn" style="padding: 4px 8px; font-size: 0.8rem; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; cursor: pointer; transition: 0.2s;">Sign Out</button>
+          </div>
+        </div>
+        <ul id="history-list">
+          <!-- Populated dynamically via main.ts -->
+          <li class="history-empty">Loading history...</li>
+        </ul>
+      </div>
+
+      <!-- Standalone Bottom Right Menu -->
+      <div id="bottom-right-menu" class="hidden" style="position: absolute; bottom: 20px; right: 30px; z-index: 100; pointer-events: auto;">
+        <button id="open-api-settings-btn" style="padding: 8px 16px; font-size: 0.9rem; font-family: 'Outfit', sans-serif; font-weight: 500; background: rgba(16, 185, 129, 0.1); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; transition: 0.2s; backdrop-filter: blur(10px); box-shadow: 0 4px 6px rgba(0,0,0,0.3);">⚙️ Update API Key</button>
+      </div>
+
+      <!-- Transition Overlay -->
+      <div id="transition-overlay" class="glass-panel foggy-panel hidden">
+        <h2 id="transition-title">Next Drill</h2>
+        <div class="huge-number" id="transition-countdown">3</div>
+      </div>
+
+      <!-- Results Panel -->
+      <div id="results-panel" class="glass-panel foggy-panel hidden" style="max-width: 600px;">
+        <h2>AI <span class="highlight">Analysis</span></h2>
+        <div class="results-grid">
+          <div class="result-card">
+            <h3>Game Analyzed</h3>
+            <div class="huge-number" id="res-game" style="font-size: 1.5rem;">--</div>
+          </div>
+          <div class="result-card">
+            <h3>Recommended cm/360</h3>
+            <div class="huge-number" id="res-cm360">--</div>
+          </div>
+          <div class="result-card">
+            <h3>In-Game Sens</h3>
+            <div class="huge-number" id="res-game-sens" style="color: var(--accent);">--</div>
+          </div>
+          <div class="result-card">
+            <h3>Effective DPI (eDPI)</h3>
+            <div class="huge-number" id="res-edpi">--</div>
+          </div>
+          <div class="result-card">
+            <h3>Confidence</h3>
+            <div class="huge-number" id="res-confidence">--</div>
+          </div>
+        </div>
+        <div id="res-delta-container"></div>
+        <div class="diagnostic-box">
+          <h3>Diagnostic Summary</h3>
+          <p id="res-diagnostic">Waiting for AI...</p>
+        </div>
+        <button id="restart-btn" class="btn secondary-btn">Run Another Drill</button>
+      </div>
+      
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
