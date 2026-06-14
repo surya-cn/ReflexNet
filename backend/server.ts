@@ -200,16 +200,19 @@ fastify.post('/api/analyze', async (request, reply) => {
     current_cm360 = (360 * 2.54) / (payload.dpi * payload.currentSens * yaw);
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } }
   });
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('encrypted_groq_key')
-    .eq('id', user.id)
-    .single();
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  
+  const [profileResult, countResult, historyResult] = await Promise.all([
+    userClient.from('profiles').select('encrypted_groq_key').eq('id', user.id).single(),
+    userClient.from('telemetry_sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', twentyFourHoursAgo),
+    userClient.from('telemetry_sessions').select('created_at, recommended_cm_per_360, metrics_summary').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
+  ]);
 
+  const { data: profile } = profileResult;
   const encryptedGroqKey = profile?.encrypted_groq_key;
   if (!encryptedGroqKey) {
     return reply.status(401).send({ error: 'Groq API Key not configured. Please complete setup.' });
@@ -222,35 +225,20 @@ fastify.post('/api/analyze', async (request, reply) => {
     return reply.status(403).send({ error: 'Failed to decrypt API Key or key tampered.' });
   }
 
-  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: authHeader as string } }
-  });
-
-  // 1. RATE LIMITER: Maximum 3 analysis requests per 24 hours
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  
-  const { count, error: countError } = await userClient
-    .from('telemetry_sessions')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .gte('created_at', twentyFourHoursAgo);
+  const { count, error: countError } = countResult;
 
   if (countError) {
     request.log.error(countError);
     return reply.status(500).send({ error: 'Database error during rate limit verification.' });
   }
 
+  // 1. RATE LIMITER: Maximum 50 analysis requests per 24 hours
   if (count !== null && count >= 50) {
     return reply.status(429).send({ error: 'Rate limit exceeded. Maximum 50 analysis requests per 24 hours allowed.' });
   }
 
   // 2. HISTORICAL LOG AGGREGATION (Last 10 entries)
-  const { data: historyData } = await userClient
-    .from('telemetry_sessions')
-    .select('created_at, recommended_cm_per_360, metrics_summary')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(10);
+  const { data: historyData } = historyResult;
 
   // 3. GROQ AI EXECUTION
   // Feeding the ENTIRE uncompressed array
@@ -317,18 +305,12 @@ fastify.post('/api/analyze', async (request, reply) => {
   }
 
   // 5. ENFORCE 10-SESSION HISTORY LIMIT
-  const { data: allSessions } = await userClient
-    .from('telemetry_sessions')
-    .select('id')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-    
-  if (allSessions && allSessions.length > 10) {
-    const idsToDelete = allSessions.slice(10).map((s: any) => s.id);
-    await userClient
-      .from('telemetry_sessions')
-      .delete()
-      .in('id', idsToDelete);
+  const { error: rpcError } = await userClient.rpc('enforce_session_limit', { 
+    p_user_id: user.id, 
+    keep_count: 10 
+  });
+  if (rpcError) {
+    request.log.warn(`Failed to enforce session limit: ${rpcError.message}`);
   }
 
   // 7. RETURN CLEAN AI OBJECT TO FRONTEND

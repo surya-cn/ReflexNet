@@ -95,6 +95,8 @@ export class TelemetryProcessor {
     this.crosshairX += dx;
     this.crosshairY += dy;
     
+    this.path.push({ x: this.crosshairX, y: this.crosshairY });
+    
     const segmentLength = Math.hypot(dx, dy);
     this.pathLength += segmentLength;
 

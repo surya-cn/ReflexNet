@@ -69,6 +69,10 @@ export class GameArena {
   private nextDirectionChangeTime = 0;
   private ignoreNextMouseMovement = false;
 
+  private raycaster = new THREE.Raycaster();
+  private readonly BASE_SENSITIVITY = 0.002;
+  private readonly TRACKING_FLOOR_Y = 2;
+
   constructor(
     containerId: string, 
     mode: string, 
@@ -176,8 +180,8 @@ export class GameArena {
 
   private getNextSpawnIndex(lastIndex: number, mode: string): number {
     if (mode === 'flicking' || lastIndex === -1) {
-       let newIndex;
-       do { newIndex = Math.floor(Math.random() * 25); } while (newIndex === lastIndex);
+       let newIndex = Math.floor(Math.random() * 24);
+       if (newIndex >= lastIndex) newIndex++;
        return newIndex;
     }
 
@@ -257,9 +261,8 @@ export class GameArena {
     const movementY = e.movementY || 0;
 
     const PI_2 = Math.PI / 2;
-    const sensitivity = 0.002;
-    this.yawObject.rotation.y -= movementX * sensitivity;
-    this.pitchObject.rotation.x -= movementY * sensitivity;
+    this.yawObject.rotation.y -= movementX * this.BASE_SENSITIVITY;
+    this.pitchObject.rotation.x -= movementY * this.BASE_SENSITIVITY;
     this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
     
     if (this.mode !== 'tracking') {
@@ -271,11 +274,10 @@ export class GameArena {
     if (document.pointerLockElement !== this.container) return;
     if (!this.isRunning || e.button !== 0 || this.mode === 'tracking') return;
 
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     
     const sprites = this.targetMeshes.map(t => t.sprite);
-    const intersects = raycaster.intersectObjects(sprites);
+    const intersects = this.raycaster.intersectObjects(sprites);
 
     if (intersects.length > 0) {
       const hitSprite = intersects[0].object as THREE.Sprite;
@@ -366,17 +368,16 @@ export class GameArena {
             this.trackingVelocity.x *= -1;
             nx = Math.max(-6, Math.min(6, nx));
           }
-          if (ny < 2 || ny > 6) {
+          if (ny < this.TRACKING_FLOOR_Y || ny > 6) {
             this.trackingVelocity.y *= -1;
-            ny = Math.max(2, Math.min(6, ny));
+            ny = Math.max(this.TRACKING_FLOOR_Y, Math.min(6, ny));
           }
 
           this.trackingTarget.position.x = nx;
           this.trackingTarget.position.y = ny;
 
-          const raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-          const intersects = raycaster.intersectObject(this.trackingTarget);
+          this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+          const intersects = this.raycaster.intersectObject(this.trackingTarget);
 
           this.totalTrackingFrames++;
           const mat = this.trackingTarget.material as THREE.SpriteMaterial;
