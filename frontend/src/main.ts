@@ -142,7 +142,7 @@ async function loadHistory() {
 
   const { data, error } = await supabase
     .from('telemetry_sessions')
-    .select('created_at, metrics_summary, recommended_cm_per_360, target_game, dpi, recommended_edpi')
+    .select('created_at, metrics_summary, recommended_cm_per_360, target_game, dpi, recommended_edpi, polling_rate')
     .order('created_at', { ascending: false })
     .limit(10); // UI display limit
 
@@ -183,7 +183,7 @@ async function loadHistory() {
     li.innerHTML = `
       <strong>Attempt #${data.length - i} (${date})</strong><br/>
       <span style="color:#94a3b8; font-size:0.8rem; margin-bottom: 2px; display: inline-block;">
-        Game: <strong>${gameName}</strong>
+        Game: <strong>${gameName}</strong> | DPI: <strong>${session.dpi || '--'}</strong> | Polling: <strong>${session.polling_rate || '--'}Hz</strong>
       </span><br/>
       <span style="color:#94a3b8; font-size:0.8rem;">
         Flick Eff: ${flickEff} | Track Acc: ${trackAcc} <br/>
