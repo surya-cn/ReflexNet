@@ -50,7 +50,8 @@ const targetsHitText = document.getElementById('targets-hit')!;
 const drillTimerText = document.getElementById('drill-timer')!;
 
 // Gauntlet State
-const GAUNTLET_MODES = ['flicking', 'micro_adjustment', 'tracking'];
+const GAUNTLET_MODES = ['flicking', 'deadzone_flick', 'micro_adjustment', 'tracking'];
+console.warn("INITIALIZED GAUNTLET MODES:", GAUNTLET_MODES);
 let currentModeIndex = 0;
 let assessmentData: Record<string, any> = {};
 let currentConfig = { dpi: 800, pollingRate: 1000, game: 'CS2', sens: null as number | null };
@@ -652,6 +653,8 @@ async function submitAssessment() {
     currentSens: currentConfig.sens || undefined,
     metrics_summary: assessmentData
   };
+  
+  console.warn("SUBMITTING PAYLOAD TO BACKEND:", JSON.stringify(payload, null, 2));
 
   try {
     const response = await fetch('http://localhost:5000/api/analyze', {

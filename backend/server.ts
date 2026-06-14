@@ -53,7 +53,8 @@ LOGIC RULES:
 - cm/360 is a physical distance (e.g. 20.0 to 70.0). Higher cm/360 = SLOWER sensitivity. Lower cm/360 = FASTER sensitivity.
 - Analyze the user's current sequential assessment AND their complete historical timeline to track macro-progression.
 - High overshoot rate (> 0.5) = The player is flinging past targets. You must LOWER the sensitivity (INCREASE the cm/360).
-- Low path efficiency (< 0.8) or poor tracking accuracy = The player has shaky control. Lower the sensitivity.`;
+- Low path efficiency (< 0.8) or poor tracking accuracy = The player has shaky control. Lower the sensitivity.
+- The 'deadzone_flick' drill measures wide-angle muscle memory transitions followed by immediate micro-adjustments. Pay special attention to 'wide_flick_efficiency' (initial ballistic movement) and 'micro_correction_efficiency' (stopping power). If these are low, their sensitivity is fundamentally mismatched for stable target acquisition.`;
 
 // ============================================================================
 // Types & Math Engine Constants
@@ -92,6 +93,14 @@ interface AnalyzePayload {
       tracking_accuracy: number;
       hovered_frames: number;
       total_frames: number;
+    };
+    deadzone_flick?: {
+      overshoot_rate: number;
+      undershoot_rate: number;
+      path_efficiency: number;
+      ttk_ms: number;
+      wide_flick_efficiency?: number;
+      micro_correction_efficiency?: number;
     };
   };
 }

@@ -5,6 +5,8 @@ export interface TelemetryEvent {
   overshoot_count: number;
   undershoot: boolean;
   path_efficiency: number;
+  wide_flick_efficiency?: number;
+  micro_correction_efficiency?: number;
 }
 
 export interface MetricsSummary {
@@ -12,6 +14,8 @@ export interface MetricsSummary {
   undershoot_rate: number;
   ttk_ms: number;
   path_efficiency: number;
+  wide_flick_efficiency?: number;
+  micro_correction_efficiency?: number;
 }
 
 export class TelemetryProcessor {
@@ -145,19 +149,39 @@ export class TelemetryProcessor {
     this.lastVelocityY = velY;
   }
 
-  public endEvent(startX: number, startY: number, endX: number, endY: number): TelemetryEvent {
+  public endEvent(): TelemetryEvent {
     this.isEventActive = false;
     const ttk = performance.now() - this.eventStartTime;
     
-    const idealDistance = Math.hypot(endX - startX, endY - startY);
+    if (this.path.length === 0) {
+      return {
+        time_to_acquire_ms: ttk,
+        overshoot_count: 0,
+        undershoot: false,
+        path_efficiency: 0,
+        wide_flick_efficiency: undefined,
+        micro_correction_efficiency: undefined
+      };
+    }
+
+    const finalPoint = this.path[this.path.length - 1];
+    const idealDistance = Math.hypot(finalPoint.x, finalPoint.y);
     const efficiency = idealDistance > 0 ? idealDistance / Math.max(idealDistance, this.pathLength) : 1.0;
     
     // Retroactive overshoot calculation
     let overshoots = 0;
     let minDistanceToTarget = idealDistance;
+    let enteredRadiusIndex = -1;
+    const ENTER_RADIUS = this.OVERSHOOT_THRESHOLD_PX * 2;
     
-    for (const point of this.path) {
-      const distToTarget = Math.hypot(endX - point.x, endY - point.y);
+    for (let i = 0; i < this.path.length; i++) {
+      const point = this.path[i];
+      const distToTarget = Math.hypot(finalPoint.x - point.x, finalPoint.y - point.y);
+      
+      if (enteredRadiusIndex === -1 && distToTarget <= ENTER_RADIUS) {
+        enteredRadiusIndex = i;
+      }
+      
       if (distToTarget < minDistanceToTarget) {
         minDistanceToTarget = distToTarget;
       } else if (distToTarget > minDistanceToTarget + this.OVERSHOOT_THRESHOLD_PX) {
@@ -165,12 +189,35 @@ export class TelemetryProcessor {
         minDistanceToTarget = distToTarget;
       }
     }
+
+    let wideFlickEff: number | undefined = undefined;
+    let microEff: number | undefined = undefined;
+
+    if (enteredRadiusIndex !== -1 && enteredRadiusIndex > 0) {
+      let widePathLen = 0;
+      for (let i = 1; i <= enteredRadiusIndex; i++) {
+        widePathLen += Math.hypot(this.path[i].x - this.path[i-1].x, this.path[i].y - this.path[i-1].y);
+      }
+      const wideIdeal = Math.hypot(this.path[enteredRadiusIndex].x, this.path[enteredRadiusIndex].y);
+      wideFlickEff = wideIdeal > 0 ? wideIdeal / Math.max(wideIdeal, widePathLen) : 1.0;
+
+      if (enteredRadiusIndex < this.path.length - 1) {
+        let microPathLen = 0;
+        for (let i = enteredRadiusIndex + 1; i < this.path.length; i++) {
+          microPathLen += Math.hypot(this.path[i].x - this.path[i-1].x, this.path[i].y - this.path[i-1].y);
+        }
+        const microIdeal = Math.hypot(finalPoint.x - this.path[enteredRadiusIndex].x, finalPoint.y - this.path[enteredRadiusIndex].y);
+        microEff = microIdeal > 0 ? microIdeal / Math.max(microIdeal, microPathLen) : 1.0;
+      }
+    }
     
     return {
       time_to_acquire_ms: ttk,
-      overshoot_count: overshoots,
+      overshoot_count: Math.max(this.overshoots, overshoots),
       undershoot: minDistanceToTarget > this.OVERSHOOT_THRESHOLD_PX && ttk > 200, 
-      path_efficiency: efficiency
+      path_efficiency: efficiency,
+      wide_flick_efficiency: wideFlickEff,
+      micro_correction_efficiency: microEff
     };
   }
 
@@ -184,19 +231,36 @@ export class TelemetryProcessor {
     let undershoots = 0;
     let totalTtk = 0;
     let totalEff = 0;
+    let totalWideEff = 0;
+    let totalMicroEff = 0;
+    let wideCount = 0;
+    let microCount = 0;
 
     events.forEach(e => {
       if (e.overshoot_count > 0) overshoots++;
       if (e.undershoot) undershoots++;
       totalTtk += e.time_to_acquire_ms;
       totalEff += e.path_efficiency;
+      if (e.wide_flick_efficiency !== undefined) {
+        totalWideEff += e.wide_flick_efficiency;
+        wideCount++;
+      }
+      if (e.micro_correction_efficiency !== undefined) {
+        totalMicroEff += e.micro_correction_efficiency;
+        microCount++;
+      }
     });
 
-    return {
+    const result: MetricsSummary = {
       overshoot_rate: overshoots / events.length,
       undershoot_rate: undershoots / events.length,
       ttk_ms: totalTtk / events.length,
       path_efficiency: totalEff / events.length
     };
+
+    if (wideCount > 0) result.wide_flick_efficiency = totalWideEff / wideCount;
+    if (microCount > 0) result.micro_correction_efficiency = totalMicroEff / microCount;
+
+    return result;
   }
 }

@@ -72,6 +72,8 @@ export class GameArena {
   private raycaster = new THREE.Raycaster();
   private readonly BASE_SENSITIVITY = 0.002;
   private readonly TRACKING_FLOOR_Y = 2;
+  private readonly DEADZONE_R_MIN = 2;
+  private readonly DEADZONE_R_MAX = 4;
 
   constructor(
     containerId: string, 
@@ -131,6 +133,21 @@ export class GameArena {
     document.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('mousedown', this.onMouseDown);
     document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+    
+    // Memory Optimization: Clean up remaining targets
+    this.targetMeshes.forEach(t => {
+      this.scene.remove(t.sprite);
+      t.sprite.material.dispose();
+    });
+    this.targetMeshes = [];
+    
+    if (this.trackingTarget) {
+      this.scene.remove(this.trackingTarget);
+      this.trackingTarget.material.dispose();
+      this.trackingTarget = null;
+    }
+    
+    this.renderer.dispose();
     this.container.innerHTML = '';
   }
 
@@ -153,16 +170,23 @@ export class GameArena {
         this.onTargetHit(0);
         
         this.occupiedCells.clear();
-        this.targetMeshes.forEach(t => this.scene.remove(t.sprite));
+        this.targetMeshes.forEach(t => {
+          this.scene.remove(t.sprite);
+          t.sprite.material.dispose();
+        });
         this.targetMeshes = [];
         this.isFirstTarget = true;
         this.lastHitPosition = null;
         this.lastTargetIndex = -1;
 
         if (this.mode === 'tracking') {
-          if (this.trackingTarget) this.scene.remove(this.trackingTarget);
+          if (this.trackingTarget) {
+            this.scene.remove(this.trackingTarget);
+            this.trackingTarget.material.dispose();
+          }
           const spriteMaterial = new THREE.SpriteMaterial({ map: cachedTargetTexture, color: 0x00ffcc });
           this.trackingTarget = new THREE.Sprite(spriteMaterial);
+          this.trackingTarget.frustumCulled = false;
           this.trackingTarget.scale.set(1.6, 1.6, 1);
           this.trackingTarget.position.set(0, 0, -15);
           this.scene.add(this.trackingTarget);
@@ -183,6 +207,28 @@ export class GameArena {
        let newIndex = Math.floor(Math.random() * 24);
        if (newIndex >= lastIndex) newIndex++;
        return newIndex;
+    }
+
+    if (mode === 'deadzone_flick') {
+      const col = lastIndex % this.GRID_COLS;
+      const row = Math.floor(lastIndex / this.GRID_COLS);
+      const candidates = [];
+      for (let r = 0; r < this.GRID_ROWS; r++) {
+        for (let c = 0; c < this.GRID_COLS; c++) {
+          if (r === row && c === col) continue;
+          const dist = Math.hypot(c - col, r - row);
+          if (dist >= this.DEADZONE_R_MIN && dist <= this.DEADZONE_R_MAX) {
+            candidates.push(r * this.GRID_COLS + c);
+          }
+        }
+      }
+      if (candidates.length > 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      } else {
+        let newIndex = Math.floor(Math.random() * 24);
+        if (newIndex >= lastIndex) newIndex++;
+        return newIndex;
+      }
     }
 
     const col = lastIndex % this.GRID_COLS;
@@ -206,14 +252,22 @@ export class GameArena {
     this.lastTargetIndex = randomIndex;
     this.occupiedCells.add(randomIndex);
 
-    const CELL_SPACING = this.mode === 'micro_adjustment' ? 1.2 : 2.2;
+    let CELL_SPACING = 2.2;
+    let scale = 1.0;
+    if (this.mode === 'micro_adjustment') {
+      CELL_SPACING = 1.2;
+      scale = 0.4;
+    } else if (this.mode === 'deadzone_flick') {
+      CELL_SPACING = 2.2;
+      scale = 0.8;
+    }
+
     const wallZ = this.camera.position.z - 20;
     
     const gridWidth = (this.GRID_COLS - 1) * CELL_SPACING;
     const gridHeight = (this.GRID_ROWS - 1) * CELL_SPACING;
 
     const floorY = -5; // GridHelper floor is at -5
-    const scale = this.mode === 'micro_adjustment' ? 0.4 : 1.0;
     const targetRadius = scale; 
     const floorPadding = 0.5;
     
@@ -239,8 +293,10 @@ export class GameArena {
     const x = (col * CELL_SPACING) - (gridWidth / 2);
     const y = centerY + ((row * CELL_SPACING) - (gridHeight / 2));
     
-    const spriteMaterial = new THREE.SpriteMaterial({ map: cachedTargetTexture, color: 0x00ffcc });
+    const color = this.mode === 'deadzone_flick' ? 0xff5500 : 0x00ffcc;
+    const spriteMaterial = new THREE.SpriteMaterial({ map: cachedTargetTexture, color: color });
     const targetMesh = new THREE.Sprite(spriteMaterial);
+    targetMesh.frustumCulled = false;
     
     targetMesh.scale.set(scale * 2, scale * 2, 1);
     targetMesh.position.set(x, y, wallZ);
@@ -261,9 +317,8 @@ export class GameArena {
     const movementY = e.movementY || 0;
 
     const PI_2 = Math.PI / 2;
-    this.yawObject.rotation.y -= movementX * this.BASE_SENSITIVITY;
-    this.pitchObject.rotation.x -= movementY * this.BASE_SENSITIVITY;
-    this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
+    this.yawObject.rotation.y = Math.max(-PI_2, Math.min(PI_2, this.yawObject.rotation.y - movementX * this.BASE_SENSITIVITY));
+    this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x - movementY * this.BASE_SENSITIVITY));
     
     if (this.mode !== 'tracking') {
       this.telemetry.onRawMouseMove(movementX, movementY);
@@ -292,12 +347,7 @@ export class GameArena {
         this.lastHitPosition = currentHitPosition;
         this.telemetry.startTracking();
       } else {
-        const evt = this.telemetry.endEvent(
-          this.lastHitPosition!.x,
-          this.lastHitPosition!.y,
-          currentHitPosition.x,
-          currentHitPosition.y
-        );
+        const evt = this.telemetry.endEvent();
         this.events.push(evt);
         this.lastHitPosition = currentHitPosition;
         this.telemetry.startTracking();
@@ -308,6 +358,7 @@ export class GameArena {
       
       // Remove and Respawn
       this.scene.remove(hitSprite);
+      hitSprite.material.dispose();
       this.occupiedCells.delete(hitTarget.cellIndex);
       this.targetMeshes.splice(hitTargetIndex, 1);
       
@@ -341,6 +392,10 @@ export class GameArena {
     const now = performance.now();
 
     if (this.isRunning && document.pointerLockElement === this.container) {
+      const PI_2 = Math.PI / 2;
+      this.yawObject.rotation.y = Math.max(-PI_2, Math.min(PI_2, this.yawObject.rotation.y));
+      this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
+
       const dt = (now - this.lastFrameTime) / 1000;
       
       this.elapsedTime += (now - this.lastFrameTime);
@@ -389,6 +444,29 @@ export class GameArena {
             mat.color.setHex(0x00ffcc);
           }
           this.onTargetHit(Math.floor((this.hoveredTrackingFrames / this.totalTrackingFrames) * 100));
+        }
+      } else if (this.mode === 'deadzone_flick') {
+        for (let i = this.targetMeshes.length - 1; i >= 0; i--) {
+          const target = this.targetMeshes[i];
+          const currentScale = target.sprite.scale.x;
+          // Shrink rate: Initial scale is 1.6. Shrinking by 1.2 per sec means it vanishes in ~1.3 seconds.
+          const newScale = currentScale - (1.2 * dt);
+          
+          if (newScale <= 0.1) {
+            // Missed target!
+            this.scene.remove(target.sprite);
+            target.sprite.material.dispose();
+            this.occupiedCells.delete(target.cellIndex);
+            this.targetMeshes.splice(i, 1);
+            
+            // Restart telemetry so this incomplete flick isn't counted
+            this.telemetry.startTracking();
+            
+            // Spawn a fresh target
+            this.spawnTarget();
+          } else {
+            target.sprite.scale.set(newScale, newScale, 1);
+          }
         }
       }
     }
