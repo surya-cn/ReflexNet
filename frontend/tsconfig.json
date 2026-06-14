@@ -15,6 +15,11 @@
     "noFallthroughCasesInSwitch": true,
     "strict": true,
     "noImplicitAny": false
+	"compilerOptions": {
+    "target": "ESNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
   },
   "include": ["src/**/*"]
 }
