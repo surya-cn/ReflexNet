@@ -60,7 +60,7 @@ export class GameArena {
   // Timing Logic
   private elapsedTime = 0;
   private lastFrameTime = 0;
-  private readonly DRILL_DURATION_MS = 10000; // 10 seconds for testing
+  private readonly DRILL_DURATION_MS = 120000; // 120 seconds for standard gameplay
 
   // Tracking Mode State
   private totalTrackingFrames = 0;

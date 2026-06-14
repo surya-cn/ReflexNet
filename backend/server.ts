@@ -48,6 +48,7 @@ CRITICAL INSTRUCTIONS:
 
 LOGIC RULES:
 - The telemetry payload includes the user's "current_cm360". Your "recommended_cm_per_360" MUST be an adjustment from this baseline. For example, if current_cm360 is 45.0, and they overshoot, you might output 48.5 (slower).
+- The telemetry data represents 120 seconds of continuous gameplay per drill. Frame counts and target counts should be evaluated against this 2-minute baseline.
 - If the user is completely new and didn't provide a sensitivity, current_cm360 will be 40.0 (a neutral, industry-standard baseline). Adjust carefully from 40.0 based on their telemetry.
 - cm/360 is a physical distance (e.g. 20.0 to 70.0). Higher cm/360 = SLOWER sensitivity. Lower cm/360 = FASTER sensitivity.
 - Analyze the user's current sequential assessment AND their complete historical timeline to track macro-progression.
